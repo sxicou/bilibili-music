@@ -1,0 +1,95 @@
+name: Android Patch APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: "17"
+          cache: gradle
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Prepare patched app
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          # 让修正版与原版 Music 共存
+          p = Path("android/app/build.gradle.kts")
+          s = p.read_text()
+
+          s = s.replace(
+              'applicationId = "com.mystyle.bilibilimusic"',
+              'applicationId = "com.mystyle.bilibilimusic.patched"'
+          )
+
+          p.write_text(s)
+
+          # 修改 App 名称，方便与原版区分
+          p = Path("android/app/src/main/res/values/strings.xml")
+          s = p.read_text()
+          s = s.replace(
+              '<string name="AppName">Music</string>',
+              '<string name="AppName">Music 修复版</string>'
+          )
+          p.write_text(s)
+
+          # 修改版本号，方便在手机上区分
+          p = Path("pubspec.yaml")
+          s = p.read_text()
+          s = s.replace(
+              "version: 1.0.9+9",
+              "version: 1.0.9+109"
+          )
+          p.write_text(s)
+          PY
+
+      - name: Generate temporary signing key
+        shell: bash
+        run: |
+          keytool -genkeypair \
+            -v \
+            -keystore android/patch.jks \
+            -storepass patch123456 \
+            -keypass patch123456 \
+            -alias patch \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=BiliMusic Patch, OU=Local, O=Local, L=Local, S=Local, C=US"
+
+          cat > android/key.properties <<EOF
+          storeFile=${GITHUB_WORKSPACE}/android/patch.jks
+          storePassword=patch123456
+          keyPassword=patch123456
+          keyAlias=patch
+          EOF
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Build APK
+        run: flutter build apk --release
+
+      - name: Upload patched APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: bilibili-music-patched-1.0.9
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7
