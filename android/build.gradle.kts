@@ -9,7 +9,7 @@ allprojects {
     }
 }
 
-// --- 核心修改：直接从 pubspec.yaml 解析 versionCode ---
+// --- 核心调整：直接从 pubspec.yaml 解析 versionCode ---
 val pubspecVersionCode: String by lazy {
     try {
         val pubspecFile = rootProject.file("../pubspec.yaml")
