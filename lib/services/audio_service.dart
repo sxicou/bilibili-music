@@ -38,6 +38,7 @@ class AudioController extends GetxController {
   final isPlaying = false.obs;
   final showLyric = false.obs;
   final isFavorite = false.obs;
+  bool _isTransitioning = false;
   final currentVolume = 1.0.obs;
   int get currentIndex => settingsService.currentPlayIndex.value;
   final playMode = PlayMode.listLoop.obs; // 默认播放模式为列表循环
@@ -159,62 +160,100 @@ class AudioController extends GetxController {
     isFavorite.toggle();
   }
 
-  Future<void> startPlay(VideoMediaInfo mediaInfo, {bool isAutoPlay = true}) async {
-    isFavorite.value = settingsService.isInFavoriteMusic(mediaInfo);
-    isPlaying.value = false;
+Future<bool> startPlay(
+  VideoMediaInfo mediaInfo, {
+  bool isAutoPlay = true,
+  bool autoSkipOnError = true,
+}) async {
+  isFavorite.value = settingsService.isInFavoriteMusic(mediaInfo);
+  isPlaying.value = false;
+
+  try {
     if (Platform.isAndroid) {
       await audioPlayer.stop();
     } else {
       player.stop();
     }
-    VideoPlaySource? videoInfoData = await BiliBiliSite().getAudioDetail(mediaInfo.aid, mediaInfo.cid, mediaInfo.bvid);
-    if (videoInfoData != null) {
-      getLyric(mediaInfo);
-      developer.log('videoInfoData: ${videoInfoData.toString()}', name: 'audioPlayerSetUrl');
-      developer.log('mediaInfo: ${mediaInfo.toString()}', name: 'mediaInfo');
-      try {
-        if (Platform.isAndroid) {
-          await _audioPlayer.setUrl(
-            Uri.decodeComponent(videoInfoData.url),
-            initialPosition:
-                isMusicFirstLoad.value ? Duration(seconds: settingsService.currentPlayPosition.value) : Duration.zero,
-            headers: getHeaders(mediaInfo),
-          );
-        } else {
-          await player.open(
-            Media(
-              videoInfoData.url,
-              httpHeaders: getHeaders(mediaInfo),
-              start:
-                  isMusicFirstLoad.value ? Duration(seconds: settingsService.currentPlayPosition.value) : Duration.zero,
-            ),
-            play: isAutoPlay,
-          );
-          await getVolume();
-          await setVolume(currentVolume.value);
-        }
-        isMusicFirstLoad.value = false;
-        if (isAutoPlay) {
-          if (Platform.isAndroid) {
-            Timer(const Duration(seconds: 1), () async {
-              await _audioPlayer.play();
-              await getVolume();
-              await setVolume(currentVolume.value);
-            });
-          }
-        }
-      } catch (e) {
-        developer.log(e.toString(), name: 'audioPlayerSetUrl');
-        SmartDialog.showToast("当前歌曲加载失败,正在播放下一首");
-        await Future.delayed(const Duration(seconds: 2));
-        next();
-      }
-    } else {
-      SmartDialog.showToast("当前歌曲加载失败,正在播放下一首");
-      await Future.delayed(const Duration(seconds: 2));
-      next();
+
+    VideoPlaySource? videoInfoData = await BiliBiliSite()
+        .getAudioDetail(mediaInfo.aid, mediaInfo.cid, mediaInfo.bvid);
+
+    if (videoInfoData == null) {
+      throw Exception("无法获取音频资源");
     }
+
+    getLyric(mediaInfo);
+
+    developer.log(
+      'videoInfoData: ${videoInfoData.toString()}',
+      name: 'audioPlayerSetUrl',
+    );
+    developer.log(
+      'mediaInfo: ${mediaInfo.toString()}',
+      name: 'mediaInfo',
+    );
+
+    if (Platform.isAndroid) {
+      await _audioPlayer.setUrl(
+        Uri.decodeComponent(videoInfoData.url),
+        initialPosition: isMusicFirstLoad.value
+            ? Duration(
+                seconds: settingsService.currentPlayPosition.value,
+              )
+            : Duration.zero,
+        headers: getHeaders(mediaInfo),
+      );
+    } else {
+      await player.open(
+        Media(
+          videoInfoData.url,
+          httpHeaders: getHeaders(mediaInfo),
+          start: isMusicFirstLoad.value
+              ? Duration(
+                  seconds: settingsService.currentPlayPosition.value,
+                )
+              : Duration.zero,
+        ),
+        play: isAutoPlay,
+      );
+
+      await getVolume();
+      await setVolume(currentVolume.value);
+    }
+
+    isMusicFirstLoad.value = false;
+
+    if (isAutoPlay && Platform.isAndroid) {
+      Timer(const Duration(seconds: 1), () async {
+        await _audioPlayer.play();
+        await getVolume();
+        await setVolume(currentVolume.value);
+      });
+    }
+
+    return true;
+  } catch (e) {
+    developer.log(
+      e.toString(),
+      name: 'audioPlayerSetUrl',
+    );
+
+    if (autoSkipOnError) {
+      SmartDialog.showToast("当前歌曲加载失败，正在重试");
+
+      await Future.delayed(
+        const Duration(milliseconds: 1200),
+      );
+
+      // 只有允许自动跳歌时才进入下一首
+      if (!_isTransitioning) {
+        await next();
+      }
+    }
+
+    return false;
   }
+}
 
   Future<void> retryStartPlay(VideoMediaInfo mediaInfo) async {
     await Future.delayed(const Duration(seconds: 2));
@@ -365,31 +404,81 @@ class AudioController extends GetxController {
   }
 
   Future<void> next() async {
-    if (settingsService.currentPlaylist.isNotEmpty) {
-      int newIndex;
-      switch (playMode.value) {
-        case PlayMode.singleLoop:
-          // 如果是单曲循环，保持索引不变
-          newIndex = settingsService.currentPlayIndex.value;
-          break;
-        case PlayMode.listLoop:
-          // 如果是列表循环，按正常顺序或循环到第一个元素
-          if (settingsService.currentPlayIndex.value < settingsService.currentPlaylist.length - 1) {
-            newIndex = settingsService.currentPlayIndex.value + 1;
-          } else {
-            newIndex = 0;
-          }
-          break;
-        case PlayMode.random:
-          // 如果是随机播放，选择一个随机索引
-          newIndex = Random().nextInt(settingsService.currentPlaylist.length);
-          break;
-      }
-      await startPlay(settingsService.currentPlaylist[newIndex]);
-      settingsService.currentPlayIndex.value = newIndex;
-    }
+  if (_isTransitioning) {
+    return;
   }
 
+  if (settingsService.currentPlaylist.isEmpty) {
+    return;
+  }
+
+  _isTransitioning = true;
+
+  try {
+    int newIndex;
+
+    switch (playMode.value) {
+      case PlayMode.singleLoop:
+        // 单曲循环：保持当前歌曲
+        newIndex = settingsService.currentPlayIndex.value;
+        break;
+
+      case PlayMode.listLoop:
+        // 列表循环：下一首，末尾回到第一首
+        if (settingsService.currentPlayIndex.value <
+            settingsService.currentPlaylist.length - 1) {
+          newIndex =
+              settingsService.currentPlayIndex.value + 1;
+        } else {
+          newIndex = 0;
+        }
+        break;
+
+      case PlayMode.random:
+        // 随机播放
+        newIndex =
+            Random().nextInt(
+              settingsService.currentPlaylist.length,
+            );
+        break;
+    }
+
+    // 关键修复：
+    // 先切换当前索引，再开始加载下一首
+    settingsService.currentPlayIndex.value = newIndex;
+
+    final mediaInfo =
+        settingsService.currentPlaylist[newIndex];
+
+    // 最多尝试 3 次
+    for (int attempt = 1; attempt <= 3; attempt++) {
+      final success = await startPlay(
+        mediaInfo,
+        isAutoPlay: true,
+        autoSkipOnError: false,
+      );
+
+      if (success) {
+        return;
+      }
+
+      if (attempt < 3) {
+        await Future.delayed(
+          const Duration(milliseconds: 1200),
+        );
+      }
+    }
+
+    // 三次都失败：
+    // 不继续把 1、2、3……全部吞掉
+    SmartDialog.showToast(
+      "下一首暂时无法加载，请稍后重试",
+    );
+  } finally {
+    _isTransitioning = false;
+  }
+}
+  
   Future<void> previous() async {
     if (settingsService.currentPlaylist.isNotEmpty) {
       int newIndex;
