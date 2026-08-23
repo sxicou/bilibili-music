@@ -154,6 +154,9 @@ class MusicPageWidgetState extends State<MusicPage> with TickerProviderStateMixi
                                     lyricModel = LyricsModelBuilder.create()
                                         .bindLyricToMain(audioController.normalLyric.value)
                                         .getModel();
+
+                                    audioController.showLyric.value = true;
+                                    
                                     setState(() {});
                                     Navigator.of(context).pop();
                                   },
