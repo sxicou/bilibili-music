@@ -359,7 +359,6 @@ Future<bool> startPlay(
       if (lyricResults.isNotEmpty) {
         lyricContent = lyricResults[0].lyrics;
       }
-      
 
       if (currentMediaInfo.aid == mediaInfo.aid &&
           currentMediaInfo.cid == mediaInfo.cid &&
@@ -377,16 +376,15 @@ Future<bool> startPlay(
         if (!_manualLyricSelected) {
           normalLyric.value = '';
         }
-      } catch (_) {
-        lyricStatus.value = LyricStatus.loadFailed;
+      }
+    } catch (_) {
+      lyricStatus.value = LyricStatus.loadFailed;
 
-        if (!_manualLyricSelected) {
-          normalLyric.value = '';
-        }
+      if (!_manualLyricSelected) {
+        normalLyric.value = '';
       }
     }
-      
-
+  }
 
   Map<String, String> getHeaders(VideoMediaInfo mediaInfo) {
     Map<String, String> header = {
