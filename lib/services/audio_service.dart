@@ -39,6 +39,7 @@ class AudioController extends GetxController {
   final showLyric = false.obs;
   final isFavorite = false.obs;
   bool _isTransitioning = false;
+  bool _manualLyricSelected = false;
   final currentVolume = 1.0.obs;
   int get currentIndex => settingsService.currentPlayIndex.value;
   final playMode = PlayMode.listLoop.obs; // 默认播放模式为列表循环
@@ -319,9 +320,18 @@ Future<bool> startPlay(
     }
   }
 
+  void setManualLyric(String lyrics) {
+    _manualLyricSelected = true;
+    lyricStatus.value = LyricStatus.loadSuccess;
+    normalLyric.value = lyrics;
+  }
+
   Future<void> getLyric(VideoMediaInfo mediaInfo) async {
+    _manualLyricSelected = false;
+    
     lyricStatus.value = LyricStatus.loading;
     normalLyric.value = '';
+  
 
     currentMusicInfo.value = MediaItem(
       id: "${mediaInfo.aid}_${mediaInfo.cid}_${mediaInfo.bvid}",
@@ -349,20 +359,35 @@ Future<bool> startPlay(
       if (lyricResults.isNotEmpty) {
         lyricContent = lyricResults[0].lyrics;
       }
+      
+
       if (currentMediaInfo.aid == mediaInfo.aid &&
           currentMediaInfo.cid == mediaInfo.cid &&
           currentMediaInfo.bvid == mediaInfo.bvid) {
         lyricStatus.value = LyricStatus.loadSuccess;
-        normalLyric.value = lyricContent;
+
+        // 如果用户已经手动选择歌词，
+        // 自动搜索结果不能覆盖用户的选择
+        if (!_manualLyricSelected) {
+          normalLyric.value = lyricContent;
+        }
       } else {
         lyricStatus.value = LyricStatus.loadSuccess;
-        normalLyric.value = '';
+
+        if (!_manualLyricSelected) {
+          normalLyric.value = '';
+        }
       }
+      
+
     } catch (_) {
       lyricStatus.value = LyricStatus.loadFailed;
-      normalLyric.value = '';
+
+      if (!_manualLyricSelected) {
+        normalLyric.value = '';
+      }
     }
-  }
+
 
   Map<String, String> getHeaders(VideoMediaInfo mediaInfo) {
     Map<String, String> header = {
