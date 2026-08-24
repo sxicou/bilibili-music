@@ -150,7 +150,7 @@ class MusicPageWidgetState extends State<MusicPage> with TickerProviderStateMixi
                                     ),
                                   ),
                                   onTap: () {
-                                    audioController.normalLyric.value = e.lyrics;
+                                    audioController.setManualLyric(e.lyrics);
                                     lyricModel = LyricsModelBuilder.create()
                                         .bindLyricToMain(audioController.normalLyric.value)
                                         .getModel();
