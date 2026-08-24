@@ -46,7 +46,7 @@ jobs:
           s = p.read_text()
           s = s.replace(
               '<string name="AppName">Music</string>',
-              '<string name="AppName">Music 修复版</string>'
+              '<string name="AppName">Music 修复版 110</string>'
           )
           p.write_text(s)
 
@@ -55,7 +55,7 @@ jobs:
           s = p.read_text()
           s = s.replace(
               "version: 1.0.9+9",
-              "version: 1.0.9+109"
+              "version: 1.0.9+110"
           )
           p.write_text(s)
           PY
