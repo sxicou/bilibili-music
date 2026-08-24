@@ -377,16 +377,15 @@ Future<bool> startPlay(
         if (!_manualLyricSelected) {
           normalLyric.value = '';
         }
-      }
-      
+      } catch (_) {
+        lyricStatus.value = LyricStatus.loadFailed;
 
-    } catch (_) {
-      lyricStatus.value = LyricStatus.loadFailed;
-
-      if (!_manualLyricSelected) {
-        normalLyric.value = '';
+        if (!_manualLyricSelected) {
+          normalLyric.value = '';
+        }
       }
     }
+      
 
 
   Map<String, String> getHeaders(VideoMediaInfo mediaInfo) {
