@@ -151,6 +151,9 @@ class MusicPageWidgetState extends State<MusicPage> with TickerProviderStateMixi
                                   ),
                                   onTap: () {
                                     audioController.setManualLyric(e.lyrics);
+
+                                    SmartDialog.showToast("歌词长度：${e.lyrics.length}");
+                                    
                                     lyricModel = LyricsModelBuilder.create()
                                         .bindLyricToMain(audioController.normalLyric.value)
                                         .getModel();
