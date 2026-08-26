@@ -1,5 +1,7 @@
 # bilibilimusic
 
+> GitHub Branch Tutorial
+
 使用Flutter开发的B站音乐客户端。
 
 [下载](https://github.com/liuchuancong/bilibili-music/releases)
