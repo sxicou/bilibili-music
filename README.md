@@ -1,5 +1,7 @@
 # bilibilimusic
 
+> GitHub Actions PR Check Tutorial
+
 > GitHub Branch Tutorial
 
 使用Flutter开发的B站音乐客户端。
@@ -40,3 +42,4 @@
   </table>
 </div>
 
+> Pull Request check synchronization test
